@@ -324,11 +324,7 @@
                         (.setHeader httpResp "Content-Type" (:json MimeTypes))
                         (let [get-json (fn [res] 
                                          (if (map? (first res))
-                                           (let [vectorOrder (when-let [vectorOrder (-> queryDescr :actionAttrs :vectorOrder)]
-                                                               (-> vectorOrder
-                                                                 (str/split #",")
-                                                                 ((partial map str/trim))
-                                                                 ((partial map keyword))))]
+                                           (let [vectorOrder (rs/derive-vectorOrder (-> queryDescr :actionAttrs :vectorOrder) (keys (first res)))]
                                              (debug lpf "vectorOrder: " vectorOrder)
                                              (rs/mapSeq-to-resultSet res vectorOrder))
                                            (json/json-str res)))]
