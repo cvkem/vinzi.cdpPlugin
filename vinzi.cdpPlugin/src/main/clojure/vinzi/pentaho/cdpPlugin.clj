@@ -74,7 +74,8 @@
 		:js    "text/javascript"
 		:json  "application/json"
     :pdf  "application/pdf"
-    :csv "application/xls"})  ;; using octet-stream to force download
+    :csv "application/xls"                   ;; using octet-stream to force download
+    :xls "application/vnd.ms-excel"})        ;; Mimetype required by Proigia/desktop to run depseudo (should be apache poi file/old style excel)
 
 
 (def HttpResponseCodes
@@ -303,7 +304,9 @@
                                                   ;;     (isa? (class (first res)) java.io.ByteArrayOutputStream)))
                           (let [{:keys [nme tpe dataStream]} fres]
                             (if-let [mimeType (tpe MimeTypes)]
-                              (.setHeader httpResp "Content-Type" mimeType)
+                              (do
+                                (debug lpf "Setting mimeType of return-value to : " mimeType)
+                                (.setHeader httpResp "Content-Type" mimeType))
                               (error lpf "no corresponding mimetype for type: " tpe))
                             (.setHeader httpResp "content-disposition" (str "attachment; filename=" nme))
                             (if (string? dataStream)
@@ -324,9 +327,9 @@
                         (.setHeader httpResp "Content-Type" (:json MimeTypes))
                         (let [get-json (fn [res] 
                                          (if (map? (first res))
-                                           (let [vectorOrder (rs/derive-vectorOrder (-> queryDescr :actionAttrs :vectorOrder) (keys (first res)))]
-                                             (debug lpf "vectorOrder: " vectorOrder)
-                                             (rs/mapSeq-to-resultSet res vectorOrder))
+                                           (let [columnOrder (rs/derive-columnOrder (-> queryDescr :actionAttrs :columnOrder) (keys (first res)))]
+                                             (debug lpf "columnOrder: " columnOrder)
+                                             (rs/mapSeq-to-resultSet res columnOrder))
                                            (json/json-str res)))]
                         (->> res
                           (get-json)
