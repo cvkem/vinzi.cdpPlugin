@@ -17,30 +17,19 @@
       [vFile :as vFile]
       [vSql :as vSql]
       [vExcept :as vExcept]])
-  (:import [vinzi.cdp.core stream-file-def ext-query]
-;           org.pentaho.platform.api.engine.IParameterProvider
-;           org.pentaho.platform.api.repository.IContentItem
-           )
+  (:import [vinzi.cdp.core stream-file-def ext-query])
 ;; TODO: check whether this could be dynamic
-    (:gen-class 
-        :implements [vinzi.pentaho.CdpHandlerInterface]
-        :state state
-        :init init
-        :constructors {[] []})
-;    :extends vinzi.pentaho.CdpHandlerObj
-;    :methods [ [handler [org.pentaho.platform.api.engine.IParameterProvider 
-;                          org.pentaho.platform.api.engine.IParameterProvider
-;                          org.pentaho.platform.api.repository.IContentItem] Object]
-;              [initialize [] void]
-;              ]
+    ;;
+    ;;  switched to dynamic class-loading
+    ;; resulting in a more reliable dispatch
+    ;;  when using gen-class you also need to uncomment the interface functions at the end.
+;    (:gen-class 
+;        :implements [vinzi.pentaho.CdpHandlerInterface]
+;        :state state
+;        :init init
+;        :constructors {[] []})
     )
 
-(defn -init
-  "Add logging to the initialization step to track it."
-  []
-  (info "Now entering init of vinzi.pentaho.cdpPlugin")
-  [[] "cdpInit completed"] ;; a fake state object
-  )
 
 
 
@@ -196,9 +185,7 @@
     {:plain results}))
 
 
-
-
-(defn -handler [_ pathPars requestPars cont]
+(defn handler [pathPars requestPars cont]
   (info " entered the CDP-handler")
   (let [lpf "(cdpPlugin/handler): "
         outStream (.getOutputStream cont nil)
@@ -302,13 +289,15 @@
                           (info "Copy file/bytebuffer to stream")
                         (if (and (= (count res) 1) (= (class fres) vinzi.cdp.core.stream-file-def)) 
                                                   ;;     (isa? (class (first res)) java.io.ByteArrayOutputStream)))
-                          (let [{:keys [nme tpe dataStream]} fres]
+                          (let [{:keys [fName tpe dataStream]} fres]
                             (if-let [mimeType (tpe MimeTypes)]
                               (do
                                 (debug lpf "Setting mimeType of return-value to : " mimeType)
                                 (.setHeader httpResp "Content-Type" mimeType))
                               (error lpf "no corresponding mimetype for type: " tpe))
-                            (.setHeader httpResp "content-disposition" (str "attachment; filename=" nme))
+                            ;; a html stream does not need a filename
+                            (when (seq fName)
+                              (.setHeader httpResp "content-disposition" (str "attachment; filename=" fName)))
                             (if (string? dataStream)
                               (with-open [f (io/input-stream dataStream)]
                                 (loop []
@@ -329,7 +318,7 @@
                                          (if (map? (first res))
                                            (let [columnOrder (rs/derive-columnOrder (-> queryDescr :actionAttrs :columnOrder) (keys (first res)))]
                                              (debug lpf "columnOrder: " columnOrder)
-                                             (rs/mapSeq-to-resultSet res columnOrder))
+                                             (rs/mapSeq-to-cdf-resultSet res columnOrder))
                                            (json/json-str res)))]
                         (->> res
                           (get-json)
@@ -359,10 +348,10 @@
                     nil))))) ;; failure
 
         
-(defn -initialize 
+(defn initialize 
   "The initialization routine assumes that this package is loaded from the 'system/cdp/lib/' folder of the pentaho-solution folder. 
    If this is the tail of the path returned by the loader then the pentaho-solution-folder is set accordingly."
-  [a]
+  []  
   (let [lpf "(cdpPlugin/initialize): "
         CheckClass "vinzi/GetClassLocation.class"
         PentahoPathRegexp (re-pattern (str "/system/cdp/lib/vinzi.cdpPlugin-[0-9]+.[0-9]+.[0-9]+[-\\w]*.jar\\!/"
@@ -388,3 +377,22 @@
              location " Apparantly not running in pentaho-server."))))
 
 
+(comment  ;; interface when running via a gen-class. Currently gen-class is not used.
+(defn -handler 
+  "the interface used when cdpPlugin is translated to a java-class (Ignoring this)"
+  [_ pathPars requestPars cont]
+  (handler pathPars requestPars cont))
+
+(defn -initialize 
+  "The initialization routine assumes that this package is loaded from the 'system/cdp/lib/' folder of the pentaho-solution folder. 
+   If this is the tail of the path returned by the loader then the pentaho-solution-folder is set accordingly."
+  [_] 
+  (initialize))
+
+(defn -init
+  "Add logging to the initialization step to track it."
+  []
+  (info "Now entering init of vinzi.pentaho.cdpPlugin")
+  [[] "cdpInit completed"] ;; a fake state object
+  )
+) ;; end comment
