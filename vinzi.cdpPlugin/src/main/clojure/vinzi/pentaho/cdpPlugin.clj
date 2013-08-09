@@ -359,7 +359,9 @@
         gcl (vinzi.GetClassLocation.)
         loader (.getClassLoader (class gcl))
         locationUrl (.getResource loader CheckClass)
-        location (.getFile locationUrl)]
+        location (-> locationUrl
+                   (.getFile )
+                   (str/replace #"\%20" " "))]   ;; urls contain %20 instead of spaces.
     ;; jar:file:/var/pentaho/bi/ps/system/cdp/lib/vinzi.cdp-0.0.2-SNAPSHOT-jar-with-dependencies.jar!/vinzi/GetClassLocation.class
     (debug lpf locationUrl)
     (trace lpf "string- " (str locationUrl))
