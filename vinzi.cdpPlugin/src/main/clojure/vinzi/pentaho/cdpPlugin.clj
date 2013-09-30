@@ -2,21 +2,22 @@
   (:use	   [clojure pprint]
 	   [clojure.tools logging])
   (:require [clojure
-	     [zip :as zip]
-	     [string :as str]]
-	    [clojure.java
-	     [io :as io :only [reader]]
-	     [jdbc :as sql]]
-	    [clojure.data
-	     [json :as json]]
-     [vinzi.pentaho
-      [connect :as conn]
-      [resultSet :as rs]]
-     [vinzi.cdp.core :as cdp]
-     [vinzi.tools
-      [vFile :as vFile]
-      [vSql :as vSql]
-      [vExcept :as vExcept]])
+             [zip :as zip]
+             [string :as str]]
+            [clojure.reflect :as refl]
+            [clojure.java
+             [io :as io :only [reader]]
+             [jdbc :as sql]]
+            [clojure.data
+             [json :as json]]
+            [vinzi.pentaho
+             [connect :as conn]
+             [resultSet :as rs]]
+            [vinzi.cdp.core :as cdp]
+            [vinzi.tools
+             [vFile :as vFile]
+             [vSql :as vSql]
+             [vExcept :as vExcept]])
   (:import [vinzi.cdp.core stream-file-def ext-query])
 ;; TODO: check whether this could be dynamic
     ;;
@@ -192,6 +193,12 @@
         pPars (get-pars pathPars)
         method (:path pPars)
         httpResp (:httpresponse pPars)
+        setHeader (fn [k v  ctx]
+                    (debug lpf "in context " ctx " set: "k"="v)
+                    (.setHeader httpResp k v))
+;        showHeaders (fn [k]
+;                      (with-out-str (str k "=" (str/join ", " (.getHeaders httpResp k)))))
+;        _ (debug lpf "initial value: " (showHeaders "Content-Type"))
         rPars (get-pars requestPars)
         _ (debug lpf "rPars = " (with-out-str (pprint rPars)) 
                     "\n and pPars = " (with-out-str (pprint pPars)))
@@ -231,8 +238,11 @@
               []
               (when httpResp
                 ;; set the default response header
-                (.setHeader httpResp "Content-Type" (:plain MimeTypes))
-                (.setHeader httpResp "Cache-Control" "max-age=0, no-store")
+;;                (.setHeader httpResp "Content-Type" (:plain MimeTypes))
+;;                (.setHeader httpResp "Cache-Control" "max-age=0, no-store")
+              ;; not needed here. Will be set later
+              ;;  (setHeader "Content-Type" (:plain MimeTypes)  "(initialize-response) ")
+                (setHeader "Cache-Control" "max-age=0, no-store" "(initialize-response) ")
                 ;; next line omitted as it is not present in cda-plugin either.
                 ;;   (assume succesfull execution)
                 ;; (.setStatus httpResponse (:continue HttpResponseCodes))
@@ -254,7 +264,7 @@
                                     (= method "/get-accessids"))
                               (exec-handler req method)
                               (if (= method "/clear-cache")
-                                (cdp/clear-cache)
+                                  (cdp/clear-cache)
                                   (let [msg (str lpf "no handler for method: " method)]
                                     (error msg)
                                     (throw (Exception. msg))))))]
@@ -272,7 +282,8 @@
                   (debug lpf " the result type: " resType)
                   (if (or (string? res) (nil? res))
                     (do
-                      (.setHeader httpResp "Content-Type" (:html MimeTypes))
+                      ;;(.setHeader httpResp "Content-Type" (:html MimeTypes))
+                      (setHeader "Content-Type" (:html MimeTypes) "(extend-response) ")
                       (->> (str res)
                         (.getBytes)
                         (.write outStream)))
@@ -293,11 +304,13 @@
                             (if-let [mimeType (tpe MimeTypes)]
                               (do
                                 (debug lpf "Setting mimeType of return-value to : " mimeType)
-                                (.setHeader httpResp "Content-Type" mimeType))
+                                ;;(.setHeader httpResp "Content-Type" mimeType))
+                                (setHeader "Content-Type" mimeType "(extend-response)-2 "))
                               (error lpf "no corresponding mimetype for type: " tpe))
                             ;; a html stream does not need a filename
                             (when (seq fName)
-                              (.setHeader httpResp "content-disposition" (str "attachment; filename=" fName)))
+                         ;;     (.setHeader httpResp "content-disposition" (str "attachment; filename=" fName)))
+                              (setHeader "content-disposition" (str "attachment; filename=" fName) "(extend-response)-3 "))
                             (if (string? dataStream)
                               (with-open [f (io/input-stream dataStream)]
                                 (loop []
@@ -313,7 +326,8 @@
                                  "Received input of type " (type res) 
                                  "  first 100 chars: " (apply str (take 100 (str res))))))
                       (do ;; it is a compound structure, so return json
-                        (.setHeader httpResp "Content-Type" (:json MimeTypes))
+;;                        (.setHeader httpResp "Content-Type" (:json MimeTypes))
+                        (setHeader "Content-Type" (:json MimeTypes) "(extend-response)-4 ")
                         (let [get-json (fn [res] 
                                          (if (map? (first res))
                                            (let [columnOrder (rs/derive-columnOrder (-> queryDescr :actionAttrs :columnOrder) (keys (first res)))]
@@ -333,7 +347,14 @@
              (debug lpf " (enter cdp-plugin with) httpResp = " (with-out-str (pprint httpResp)))
              (let [res (-> (process-request) 
                          (extend-response))]  ;; return result on success
+                    ;; httpResp is a mutable java object.
                    (debug lpf " (initial) httpResp = " (with-out-str (pprint httpResp)))
+               ;;    (debug lpf " (reflect on) httpResp = " (with-out-str (pprint (refl/reflect httpResp))))
+                ;;   (debug lpf "   content-type is: " (.getHeader httpResp "Content-Type"))
+                ;;   (debug lpf "   content-type is (array: " (with-out-str (str/join ", " (.getHeaders httpResp "Content-Type"))))
+                ;;(debug lpf "   content-type as array: " (showHeaders "Content-Type"))
+                ;;   (debug lpf " and final response has headers: " (str/join ", " (.getHeaderNames httpResp)))
+               
                    res)
              (catch Throwable e
                (let [msgPrefix (str "Exception/Throwable caught in method:" method " ")]
