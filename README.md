@@ -1,4 +1,4 @@
-# vinzi.jsonMgt
+# vinzi.jcdpPlugin
 
 Pentaho CDP (Community Data Processing) plugin.
 
