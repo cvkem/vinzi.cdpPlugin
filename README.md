@@ -1,4 +1,4 @@
-# vinzi.jcdpPlugin
+# vinzi.cdpPlugin
 
 Pentaho CDP (Community Data Processing) plugin.
 
@@ -25,7 +25,7 @@ Maven dependency information:
 
 ## Developer Information
 
-- [GitHub Project](https://github.com/cvkem/vinzi.jsonMgt)
+- [GitHub Project](https://github.com/cvkem/vinzi.cdpPlugin)
 
 
 ## License
